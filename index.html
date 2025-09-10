@@ -1,0 +1,1234 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meal Roulette - 실시간 레시피 웹앱</title>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
+    
+    <!--
+    API 교체 방법:
+    1. API_BASE_URL 상수를 수정하여 다른 API 엔드포인트로 변경
+    2. API 응답 형식에 맞게 데이터 파싱 로직 수정
+    3. 필요한 경우 새로운 엔드포인트 추가
+    
+    배포 방법:
+    1. GitHub Pages: 
+       - GitHub 저장소 생성 후 index.html 업로드
+       - Settings > Pages에서 Source를 "Deploy from a branch" 선택
+       - Branch를 "main"으로 설정
+    
+    2. Cloudflare Pages:
+       - Cloudflare 대시보드에서 Pages 프로젝트 생성
+       - index.html 파일을 업로드하거나 GitHub 저장소 연결
+       - 자동 배포 설정
+    -->
+    
+    <style>
+        :root {
+            --primary-color: #ff6b6b;
+            --secondary-color: #4ecdc4;
+            --accent-color: #45b7d1;
+            --text-primary: #2c3e50;
+            --text-secondary: #7f8c8d;
+            --bg-primary: #ffffff;
+            --bg-secondary: #f8f9fa;
+            --bg-card: #ffffff;
+            --border-color: #e9ecef;
+            --shadow: 0 2px 10px rgba(0,0,0,0.1);
+            --shadow-hover: 0 4px 20px rgba(0,0,0,0.15);
+            --radius: 12px;
+            --transition: all 0.3s ease;
+        }
+
+        [data-theme="dark"] {
+            --text-primary: #ecf0f1;
+            --text-secondary: #bdc3c7;
+            --bg-primary: #2c3e50;
+            --bg-secondary: #34495e;
+            --bg-card: #34495e;
+            --border-color: #4a5f7a;
+            --shadow: 0 2px 10px rgba(0,0,0,0.3);
+            --shadow-hover: 0 4px 20px rgba(0,0,0,0.4);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            transition: var(--transition);
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+
+        /* Header */
+        .header {
+            background: var(--bg-card);
+            box-shadow: var(--shadow);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            backdrop-filter: blur(10px);
+        }
+
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 0;
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--primary-color);
+            text-decoration: none;
+        }
+
+        .theme-toggle {
+            background: none;
+            border: 2px solid var(--border-color);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: var(--transition);
+            font-size: 1.2rem;
+        }
+
+        .theme-toggle:hover {
+            border-color: var(--primary-color);
+            transform: scale(1.1);
+        }
+
+        /* Search Section */
+        .search-section {
+            padding: 2rem 0;
+            background: var(--bg-secondary);
+        }
+
+        .search-container {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .search-input {
+            padding: 1rem;
+            border: 2px solid var(--border-color);
+            border-radius: var(--radius);
+            font-size: 1rem;
+            background: var(--bg-card);
+            color: var(--text-primary);
+            transition: var(--transition);
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(255, 107, 107, 0.1);
+        }
+
+        .controls {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .category-select {
+            padding: 0.75rem 1rem;
+            border: 2px solid var(--border-color);
+            border-radius: var(--radius);
+            background: var(--bg-card);
+            color: var(--text-primary);
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .category-select:focus {
+            outline: none;
+            border-color: var(--primary-color);
+        }
+
+        .random-btn {
+            padding: 0.75rem 1.5rem;
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: var(--radius);
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .random-btn:hover {
+            background: #ff5252;
+            transform: translateY(-2px);
+        }
+
+        .random-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* Loading States */
+        .loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 3rem;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid var(--border-color);
+            border-top: 4px solid var(--primary-color);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .skeleton {
+            background: linear-gradient(90deg, var(--border-color) 25%, var(--bg-secondary) 50%, var(--border-color) 75%);
+            background-size: 200% 100%;
+            animation: loading 1.5s infinite;
+            border-radius: var(--radius);
+        }
+
+        @keyframes loading {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+
+        /* Recipe Grid */
+        .recipes-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 1.5rem;
+            padding: 2rem 0;
+        }
+
+        .recipe-card {
+            background: var(--bg-card);
+            border-radius: var(--radius);
+            overflow: hidden;
+            box-shadow: var(--shadow);
+            transition: var(--transition);
+            cursor: pointer;
+            position: relative;
+        }
+
+        .recipe-card:hover {
+            transform: translateY(-5px);
+            box-shadow: var(--shadow-hover);
+        }
+
+        .recipe-image {
+            width: 100%;
+            height: 200px;
+            object-fit: cover;
+            background: var(--border-color);
+        }
+
+        .recipe-content {
+            padding: 1rem;
+        }
+
+        .recipe-title {
+            font-size: 1.1rem;
+            font-weight: 500;
+            margin-bottom: 0.5rem;
+            color: var(--text-primary);
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .recipe-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        .recipe-category {
+            background: var(--secondary-color);
+            color: white;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+        }
+
+        .favorite-btn {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            background: rgba(255, 255, 255, 0.9);
+            border: none;
+            border-radius: 50%;
+            width: 35px;
+            height: 35px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: var(--transition);
+            font-size: 1.2rem;
+        }
+
+        .favorite-btn:hover {
+            background: white;
+            transform: scale(1.1);
+        }
+
+        .favorite-btn.active {
+            color: var(--primary-color);
+        }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 3rem;
+            color: var(--text-secondary);
+        }
+
+        .empty-state-icon {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+            opacity: 0.5;
+        }
+
+        /* Meal Detail */
+        .meal-detail {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 2rem 0;
+        }
+
+        .meal-header {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .meal-image {
+            width: 100%;
+            max-width: 500px;
+            height: 300px;
+            object-fit: cover;
+            border-radius: var(--radius);
+            margin: 0 auto;
+        }
+
+        .meal-title {
+            font-size: 2rem;
+            font-weight: 700;
+            text-align: center;
+            color: var(--text-primary);
+        }
+
+        .meal-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            justify-content: center;
+            margin-bottom: 2rem;
+        }
+
+        .meta-tag {
+            background: var(--accent-color);
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: var(--radius);
+            font-size: 0.9rem;
+        }
+
+        .meal-section {
+            margin-bottom: 2rem;
+        }
+
+        .section-title {
+            font-size: 1.3rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .ingredients-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .ingredient-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem;
+            background: var(--bg-secondary);
+            border-radius: 6px;
+            transition: var(--transition);
+        }
+
+        .ingredient-item.checked {
+            opacity: 0.6;
+            text-decoration: line-through;
+        }
+
+        .ingredient-checkbox {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+
+        .instructions {
+            background: var(--bg-secondary);
+            padding: 1.5rem;
+            border-radius: var(--radius);
+            line-height: 1.8;
+        }
+
+        .instruction-step {
+            margin-bottom: 1rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .instruction-step:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+        }
+
+        .step-number {
+            background: var(--primary-color);
+            color: white;
+            width: 25px;
+            height: 25px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8rem;
+            font-weight: 600;
+            margin-right: 0.5rem;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+            margin-top: 1rem;
+        }
+
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: var(--radius);
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: var(--transition);
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn-primary {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #ff5252;
+            transform: translateY(-2px);
+        }
+
+        .btn-secondary {
+            background: var(--secondary-color);
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #3db5ad;
+            transform: translateY(-2px);
+        }
+
+        .btn-outline {
+            background: transparent;
+            color: var(--text-primary);
+            border: 2px solid var(--border-color);
+        }
+
+        .btn-outline:hover {
+            border-color: var(--primary-color);
+            color: var(--primary-color);
+        }
+
+        /* Toast */
+        .toast {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            background: var(--text-primary);
+            color: var(--bg-primary);
+            padding: 1rem 1.5rem;
+            border-radius: var(--radius);
+            box-shadow: var(--shadow-hover);
+            transform: translateX(400px);
+            transition: var(--transition);
+            z-index: 1000;
+        }
+
+        .toast.show {
+            transform: translateX(0);
+        }
+
+        /* Back Button */
+        .back-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: var(--text-primary);
+            text-decoration: none;
+            margin-bottom: 2rem;
+            transition: var(--transition);
+        }
+
+        .back-btn:hover {
+            color: var(--primary-color);
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .header-content {
+                flex-direction: column;
+                gap: 1rem;
+            }
+
+            .controls {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .recipes-grid {
+                grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+                gap: 1rem;
+            }
+
+            .meal-meta {
+                flex-direction: column;
+                align-items: center;
+            }
+
+            .action-buttons {
+                flex-direction: column;
+            }
+
+            .toast {
+                right: 1rem;
+                left: 1rem;
+                transform: translateY(100px);
+            }
+
+            .toast.show {
+                transform: translateY(0);
+            }
+        }
+
+        /* Accessibility */
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
+        }
+
+        *:focus {
+            outline: 2px solid var(--primary-color);
+            outline-offset: 2px;
+        }
+
+        /* Hidden class for routing */
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <a href="#" class="logo" onclick="showHomePage()">🍽️ Meal Roulette</a>
+                <button class="theme-toggle" onclick="toggleTheme()" aria-label="테마 변경">
+                    <span id="theme-icon">🌙</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- Search Section -->
+        <section class="search-section" id="search-section">
+            <div class="search-container">
+                <input 
+                    type="text" 
+                    class="search-input" 
+                    id="search-input" 
+                    placeholder="레시피를 검색해보세요..."
+                    aria-label="레시피 검색"
+                >
+                <div class="controls">
+                    <select class="category-select" id="category-select" aria-label="카테고리 선택">
+                        <option value="">모든 카테고리</option>
+                    </select>
+                    <button class="random-btn" id="random-btn" onclick="getRandomMeal()">
+                        🎲 랜덤 추천
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Main Content -->
+        <main id="main-content">
+            <!-- Home Page -->
+            <div id="home-page">
+                <div class="loading" id="loading">
+                    <div class="spinner"></div>
+                </div>
+                <div class="recipes-grid" id="recipes-grid"></div>
+                <div class="empty-state hidden" id="empty-state">
+                    <div class="empty-state-icon">🍽️</div>
+                    <h3>레시피를 찾을 수 없습니다</h3>
+                    <p>다른 검색어를 시도해보세요</p>
+                </div>
+            </div>
+
+            <!-- Meal Detail Page -->
+            <div id="meal-detail-page" class="hidden">
+                <a href="#" class="back-btn" onclick="showHomePage()">
+                    ← 뒤로가기
+                </a>
+                <div class="meal-detail" id="meal-detail"></div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Toast -->
+    <div class="toast" id="toast"></div>
+
+    <script>
+        // API Configuration
+        const API_BASE_URL = 'https://www.themealdb.com/api/json/v1/1/';
+        
+        // Cache configuration
+        const CACHE_DURATION = 30 * 60 * 1000; // 30 minutes
+        const cache = new Map();
+        
+        // State management
+        let currentPage = 'home';
+        let searchTimeout = null;
+        let categories = [];
+        
+        // Initialize app
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeTheme();
+            loadCategories();
+            setupEventListeners();
+            handleRouting();
+        });
+
+        // Theme management
+        function initializeTheme() {
+            const savedTheme = localStorage.getItem('theme') || 'light';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+            updateThemeIcon(savedTheme);
+        }
+
+        function toggleTheme() {
+            const currentTheme = document.documentElement.getAttribute('data-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            
+            document.documentElement.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+            updateThemeIcon(newTheme);
+        }
+
+        function updateThemeIcon(theme) {
+            const icon = document.getElementById('theme-icon');
+            icon.textContent = theme === 'dark' ? '☀️' : '🌙';
+        }
+
+        // Event listeners
+        function setupEventListeners() {
+            const searchInput = document.getElementById('search-input');
+            const categorySelect = document.getElementById('category-select');
+            
+            searchInput.addEventListener('input', handleSearch);
+            categorySelect.addEventListener('change', handleCategoryChange);
+            
+            // Handle browser back/forward
+            window.addEventListener('popstate', handleRouting);
+        }
+
+        // Search functionality
+        function handleSearch(event) {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                const query = event.target.value.trim();
+                if (query.length >= 2) {
+                    searchMeals(query);
+                } else if (query.length === 0) {
+                    showHomePage();
+                }
+            }, 400);
+        }
+
+        function handleCategoryChange(event) {
+            const category = event.target.value;
+            if (category) {
+                getMealsByCategory(category);
+            } else {
+                showHomePage();
+            }
+        }
+
+        // API functions with caching and retry logic
+        async function fetchWithRetry(url, maxRetries = 3) {
+            for (let i = 0; i < maxRetries; i++) {
+                try {
+                    const response = await fetch(url);
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return await response.json();
+                } catch (error) {
+                    if (i === maxRetries - 1) throw error;
+                    await new Promise(resolve => setTimeout(resolve, Math.pow(2, i) * 1000));
+                }
+            }
+        }
+
+        async function fetchWithCache(url) {
+            const cacheKey = url;
+            const cached = cache.get(cacheKey);
+            
+            if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+                return cached.data;
+            }
+            
+            try {
+                const data = await fetchWithRetry(url);
+                cache.set(cacheKey, {
+                    data: data,
+                    timestamp: Date.now()
+                });
+                return data;
+            } catch (error) {
+                console.error('API Error:', error);
+                showToast('데이터를 불러오는데 실패했습니다. 다시 시도해주세요.', 'error');
+                throw error;
+            }
+        }
+
+        // Load categories
+        async function loadCategories() {
+            try {
+                const data = await fetchWithCache(`${API_BASE_URL}list.php?c=list`);
+                categories = data.meals || [];
+                
+                const select = document.getElementById('category-select');
+                select.innerHTML = '<option value="">모든 카테고리</option>';
+                
+                categories.forEach(category => {
+                    const option = document.createElement('option');
+                    option.value = category.strCategory;
+                    option.textContent = category.strCategory;
+                    select.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Failed to load categories:', error);
+            }
+        }
+
+        // Search meals
+        async function searchMeals(query) {
+            showLoading();
+            try {
+                const data = await fetchWithCache(`${API_BASE_URL}search.php?s=${encodeURIComponent(query)}`);
+                displayMeals(data.meals || []);
+            } catch (error) {
+                showEmptyState();
+            }
+        }
+
+        // Get meals by category
+        async function getMealsByCategory(category) {
+            showLoading();
+            try {
+                const data = await fetchWithCache(`${API_BASE_URL}filter.php?c=${encodeURIComponent(category)}`);
+                displayMeals(data.meals || []);
+            } catch (error) {
+                showEmptyState();
+            }
+        }
+
+        // Get random meal
+        async function getRandomMeal() {
+            const btn = document.getElementById('random-btn');
+            btn.disabled = true;
+            btn.textContent = '🎲 추천 중...';
+            
+            try {
+                const data = await fetchWithCache(`${API_BASE_URL}random.php`);
+                if (data.meals && data.meals.length > 0) {
+                    displayMeals(data.meals);
+                }
+            } catch (error) {
+                showToast('랜덤 추천을 불러오는데 실패했습니다.', 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '🎲 랜덤 추천';
+            }
+        }
+
+        // Get meal by ID
+        async function getMealById(id) {
+            try {
+                const data = await fetchWithCache(`${API_BASE_URL}lookup.php?i=${id}`);
+                return data.meals && data.meals.length > 0 ? data.meals[0] : null;
+            } catch (error) {
+                console.error('Failed to get meal:', error);
+                return null;
+            }
+        }
+
+        // Display meals
+        function displayMeals(meals) {
+            const grid = document.getElementById('recipes-grid');
+            const loading = document.getElementById('loading');
+            const emptyState = document.getElementById('empty-state');
+            
+            loading.classList.add('hidden');
+            
+            if (!meals || meals.length === 0) {
+                grid.innerHTML = '';
+                emptyState.classList.remove('hidden');
+                return;
+            }
+            
+            emptyState.classList.add('hidden');
+            grid.innerHTML = '';
+            
+            meals.forEach(meal => {
+                const card = createMealCard(meal);
+                grid.appendChild(card);
+            });
+        }
+
+        // Create meal card
+        function createMealCard(meal) {
+            const card = document.createElement('div');
+            card.className = 'recipe-card';
+            card.onclick = () => showMealDetail(meal.idMeal);
+            
+            const isFavorite = isMealFavorite(meal.idMeal);
+            
+            card.innerHTML = `
+                <img 
+                    src="${meal.strMealThumb}" 
+                    alt="${meal.strMeal}"
+                    class="recipe-image"
+                    loading="lazy"
+                    onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjgwIiBoZWlnaHQ9IjIwMCIgdmlld0JveD0iMCAwIDI4MCAyMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIyODAiIGhlaWdodD0iMjAwIiBmaWxsPSIjRjVGNUY1Ii8+CjxwYXRoIGQ9Ik0xNDAgMTAwTDE2MCA4MEwxNDAgNjBMMTIwIDgwTDE0MCAxMDBaIiBmaWxsPSIjQ0NDQ0NDIi8+Cjx0ZXh0IHg9IjE0MCIgeT0iMTMwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjOTk5OTk5IiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTQiPuaXoOazleiDveWbvueJhzwvdGV4dD4KPC9zdmc+'"
+                >
+                <button 
+                    class="favorite-btn ${isFavorite ? 'active' : ''}" 
+                    onclick="event.stopPropagation(); toggleFavorite('${meal.idMeal}')"
+                    aria-label="${isFavorite ? '즐겨찾기 제거' : '즐겨찾기 추가'}"
+                >
+                    ${isFavorite ? '❤️' : '🤍'}
+                </button>
+                <div class="recipe-content">
+                    <h3 class="recipe-title">${meal.strMeal}</h3>
+                    <div class="recipe-meta">
+                        <span class="recipe-category">${meal.strCategory || '기타'}</span>
+                        <span>${meal.strArea || '국가 미상'}</span>
+                    </div>
+                </div>
+            `;
+            
+            return card;
+        }
+
+        // Show meal detail
+        async function showMealDetail(mealId) {
+            showLoading();
+            currentPage = 'detail';
+            
+            try {
+                const meal = await getMealById(mealId);
+                if (!meal) {
+                    showToast('레시피를 찾을 수 없습니다.', 'error');
+                    showHomePage();
+                    return;
+                }
+                
+                // Add to recent meals
+                addToRecentMeals(meal);
+                
+                // Update URL
+                history.pushState({ page: 'detail', mealId }, '', `#/meal/${mealId}`);
+                
+                // Show detail page
+                showDetailPage();
+                displayMealDetail(meal);
+                
+            } catch (error) {
+                showToast('레시피를 불러오는데 실패했습니다.', 'error');
+                showHomePage();
+            }
+        }
+
+        // Display meal detail
+        function displayMealDetail(meal) {
+            const detailContainer = document.getElementById('meal-detail');
+            const isFavorite = isMealFavorite(meal.idMeal);
+            
+            // Parse ingredients
+            const ingredients = parseIngredients(meal);
+            
+            // Parse instructions
+            const instructions = parseInstructions(meal.strInstructions);
+            
+            detailContainer.innerHTML = `
+                <div class="meal-header">
+                    <img 
+                        src="${meal.strMealThumb}" 
+                        alt="${meal.strMeal}"
+                        class="meal-image"
+                        loading="lazy"
+                    >
+                    <h1 class="meal-title">${meal.strMeal}</h1>
+                    <div class="meal-meta">
+                        <span class="meta-tag">${meal.strCategory || '기타'}</span>
+                        <span class="meta-tag">${meal.strArea || '국가 미상'}</span>
+                        <span class="meta-tag">⏱️ 30분</span>
+                        <span class="meta-tag">⭐ 쉬움</span>
+                        ${meal.strTags ? meal.strTags.split(',').map(tag => 
+                            `<span class="meta-tag">${tag.trim()}</span>`
+                        ).join('') : ''}
+                    </div>
+                    <div class="action-buttons">
+                        <button class="btn btn-primary" onclick="toggleFavorite('${meal.idMeal}')">
+                            ${isFavorite ? '❤️ 즐겨찾기 제거' : '🤍 즐겨찾기 추가'}
+                        </button>
+                        ${meal.strYoutube ? `
+                            <a href="${meal.strYoutube}" target="_blank" class="btn btn-secondary">
+                                📺 YouTube 보기
+                            </a>
+                        ` : ''}
+                    </div>
+                </div>
+                
+                <div class="meal-section">
+                    <h2 class="section-title">🛒 재료</h2>
+                    <div class="ingredients-list" id="ingredients-list">
+                        ${ingredients.map(ingredient => `
+                            <div class="ingredient-item">
+                                <input 
+                                    type="checkbox" 
+                                    class="ingredient-checkbox" 
+                                    id="ingredient-${ingredient.id}"
+                                    onchange="toggleIngredient(${ingredient.id})"
+                                >
+                                <label for="ingredient-${ingredient.id}">
+                                    ${ingredient.measure} ${ingredient.name}
+                                </label>
+                            </div>
+                        `).join('')}
+                    </div>
+                    <div class="action-buttons">
+                        <button class="btn btn-outline" onclick="copyShoppingList()">
+                            📋 쇼핑리스트 복사
+                        </button>
+                        <button class="btn btn-outline" onclick="downloadShoppingList()">
+                            💾 CSV 다운로드
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="meal-section">
+                    <h2 class="section-title">👨‍🍳 조리 방법</h2>
+                    <div class="instructions">
+                        ${instructions.map((instruction, index) => `
+                            <div class="instruction-step">
+                                <span class="step-number">${index + 1}</span>
+                                ${instruction}
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        // Parse ingredients
+        function parseIngredients(meal) {
+            const ingredients = [];
+            for (let i = 1; i <= 20; i++) {
+                const ingredient = meal[`strIngredient${i}`];
+                const measure = meal[`strMeasure${i}`];
+                
+                if (ingredient && ingredient.trim()) {
+                    ingredients.push({
+                        id: i,
+                        name: ingredient.trim(),
+                        measure: (measure || '').trim()
+                    });
+                }
+            }
+            return ingredients;
+        }
+
+        // Parse instructions
+        function parseInstructions(instructions) {
+            if (!instructions) return [];
+            
+            return instructions
+                .split(/\.\s+/)
+                .filter(step => step.trim())
+                .map(step => step.trim() + (step.endsWith('.') ? '' : '.'));
+        }
+
+        // Shopping list functions
+        function copyShoppingList() {
+            const ingredients = document.querySelectorAll('.ingredient-item');
+            const shoppingList = Array.from(ingredients)
+                .map(item => {
+                    const label = item.querySelector('label').textContent;
+                    return `☐ ${label}`;
+                })
+                .join('\n');
+            
+            navigator.clipboard.writeText(shoppingList).then(() => {
+                showToast('쇼핑리스트가 클립보드에 복사되었습니다!');
+            }).catch(() => {
+                showToast('복사에 실패했습니다.', 'error');
+            });
+        }
+
+        function downloadShoppingList() {
+            const ingredients = document.querySelectorAll('.ingredient-item');
+            const csvContent = [
+                ['재료', '수량'],
+                ...Array.from(ingredients).map(item => {
+                    const label = item.querySelector('label').textContent;
+                    const [measure, name] = label.split(' ', 2);
+                    return [name, measure];
+                })
+            ].map(row => row.join(',')).join('\n');
+            
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = 'shopping_list.csv';
+            link.click();
+            
+            showToast('CSV 파일이 다운로드되었습니다!');
+        }
+
+        // Favorite management
+        function toggleFavorite(mealId) {
+            const favorites = getFavorites();
+            const index = favorites.indexOf(mealId);
+            
+            if (index > -1) {
+                favorites.splice(index, 1);
+                showToast('즐겨찾기에서 제거되었습니다.');
+            } else {
+                favorites.push(mealId);
+                showToast('즐겨찾기에 추가되었습니다!');
+            }
+            
+            localStorage.setItem('favorites', JSON.stringify(favorites));
+            
+            // Update UI
+            if (currentPage === 'home') {
+                // Refresh current view
+                const searchInput = document.getElementById('search-input');
+                const categorySelect = document.getElementById('category-select');
+                
+                if (searchInput.value.trim()) {
+                    searchMeals(searchInput.value.trim());
+                } else if (categorySelect.value) {
+                    getMealsByCategory(categorySelect.value);
+                } else {
+                    showHomePage();
+                }
+            } else {
+                // Update detail page
+                const meal = document.querySelector('.meal-detail');
+                if (meal) {
+                    const btn = meal.querySelector('.btn-primary');
+                    const isFavorite = isMealFavorite(mealId);
+                    btn.innerHTML = `${isFavorite ? '❤️' : '🤍'} 즐겨찾기 ${isFavorite ? '제거' : '추가'}`;
+                }
+            }
+        }
+
+        function isMealFavorite(mealId) {
+            const favorites = getFavorites();
+            return favorites.includes(mealId);
+        }
+
+        function getFavorites() {
+            try {
+                return JSON.parse(localStorage.getItem('favorites') || '[]');
+            } catch {
+                return [];
+            }
+        }
+
+        // Recent meals management
+        function addToRecentMeals(meal) {
+            const recent = getRecentMeals();
+            const existingIndex = recent.findIndex(m => m.idMeal === meal.idMeal);
+            
+            if (existingIndex > -1) {
+                recent.splice(existingIndex, 1);
+            }
+            
+            recent.unshift(meal);
+            
+            // Keep only last 20 meals
+            if (recent.length > 20) {
+                recent.splice(20);
+            }
+            
+            localStorage.setItem('recentMeals', JSON.stringify(recent));
+        }
+
+        function getRecentMeals() {
+            try {
+                return JSON.parse(localStorage.getItem('recentMeals') || '[]');
+            } catch {
+                return [];
+            }
+        }
+
+        // Page navigation
+        function showHomePage() {
+            currentPage = 'home';
+            history.pushState({ page: 'home' }, '', '#');
+            
+            document.getElementById('home-page').classList.remove('hidden');
+            document.getElementById('meal-detail-page').classList.add('hidden');
+            document.getElementById('search-section').classList.remove('hidden');
+            
+            // Clear search
+            document.getElementById('search-input').value = '';
+            document.getElementById('category-select').value = '';
+            
+            // Show recent meals or random meals
+            const recentMeals = getRecentMeals();
+            if (recentMeals.length > 0) {
+                displayMeals(recentMeals);
+            } else {
+                getRandomMeal();
+            }
+        }
+
+        function showDetailPage() {
+            document.getElementById('home-page').classList.add('hidden');
+            document.getElementById('meal-detail-page').classList.remove('hidden');
+            document.getElementById('search-section').classList.add('hidden');
+        }
+
+        function showLoading() {
+            document.getElementById('loading').classList.remove('hidden');
+            document.getElementById('recipes-grid').innerHTML = '';
+            document.getElementById('empty-state').classList.add('hidden');
+        }
+
+        function showEmptyState() {
+            document.getElementById('loading').classList.add('hidden');
+            document.getElementById('recipes-grid').innerHTML = '';
+            document.getElementById('empty-state').classList.remove('hidden');
+        }
+
+        // Routing
+        function handleRouting() {
+            const hash = window.location.hash;
+            
+            if (hash.startsWith('#/meal/')) {
+                const mealId = hash.split('/')[2];
+                if (mealId) {
+                    showMealDetail(mealId);
+                }
+            } else {
+                showHomePage();
+            }
+        }
+
+        // Toast notifications
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = `toast ${type}`;
+            toast.classList.add('show');
+            
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        }
+
+        // Ingredient checkbox handling
+        function toggleIngredient(id) {
+            const item = document.querySelector(`#ingredient-${id}`).closest('.ingredient-item');
+            const checkbox = document.querySelector(`#ingredient-${id}`);
+            
+            if (checkbox.checked) {
+                item.classList.add('checked');
+            } else {
+                item.classList.remove('checked');
+            }
+        }
+    </script>
+</body>
+</html>
